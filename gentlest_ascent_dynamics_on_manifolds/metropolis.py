@@ -1,6 +1,7 @@
-"""Metropolis sampler module.
+"""Metropolis sampler module."""
 
-"""
+__all__ = ['Metropolis']
+
 
 import itertools
 import math
@@ -11,13 +12,15 @@ import numpy as np
 
 
 class Metropolis:
-    """Implementation of the Metropolis-Hastings algorithm.
+    """Implementation of the Metropolis-Hastings algorithm."""
 
-    """
-    def __init__(self, potential: Callable[[np.ndarray, Any], float],
-                 temperature: float,
-                 delta: float,
-                 initial_point: np.ndarray) -> None:
+    def __init__(
+        self,
+        potential: Callable[[np.ndarray, Any], float],
+        temperature: float,
+        delta: float,
+        initial_point: np.ndarray,
+    ) -> None:
         self.potential = potential
         self.temperature = temperature
 
@@ -36,9 +39,11 @@ class Metropolis:
         self.accepted = self.total = 1
 
     def __repr__(self) -> str:
-        return (f'{self.__class__.__name__}(potential={self.potential}, '
-                + f'temperature={self.temperature}, delta={self.delta}, '
-                + f'initial_point={self.current_point})')
+        return (
+            f'{self.__class__.__name__}(potential={self.potential}, '
+            + f'temperature={self.temperature}, delta={self.delta}, '
+            + f'initial_point={self.current_point})'
+        )
 
     def __iter__(self) -> 'Metropolis':
         return self
@@ -58,23 +63,18 @@ class Metropolis:
         return self.current_point
 
     def _generate_candidate(self) -> np.ndarray:
-        r = self.delta * (2 * np.random.rand(self.dim)
-                          - np.ones(self.dim))
+        r = self.delta * (2 * np.random.rand(self.dim) - np.ones(self.dim))
         return self.current_point + r
 
     def get_acceptance_ratio(self) -> float:
-        """Return current acceptance ratio.
-
-        """
+        """Return current acceptance ratio."""
         return self.accepted / self.total
 
     def _compute_probability(self, point: np.ndarray) -> float:
         return math.exp(-self.potential(point) / self.temperature)
 
     def draw_samples(self, num_samples: int, step: int = 1) -> np.ndarray:
-        """Sample a number of points from the chain.
-
-        """
+        """Sample a number of points from the chain."""
         points = np.zeros((num_samples // step, self.dim))
         iterator = itertools.islice(self, 0, num_samples, step)
 
@@ -83,11 +83,13 @@ class Metropolis:
 
         return points
 
-    def ensemble_average(self, observable: Callable[[np.ndarray], float],
-                         num_samples: int, step: int) -> float:
-        """Evaluate the ensemble average of an observable.
-
-        """
+    def ensemble_average(
+        self,
+        observable: Callable[[np.ndarray], float],
+        num_samples: int,
+        step: int,
+    ) -> float:
+        """Evaluate the ensemble average of an observable."""
         average = 0.0
         total_samples = num_samples / step
 
@@ -96,3 +98,23 @@ class Metropolis:
             average += observable(point)
 
         return average / total_samples
+
+    def sample(
+        self,
+        point: np.ndarray,
+        *,
+        num_batches: int,
+        num_samples_per_batch: int,
+    ) -> np.ndarray:
+        """Sample batches of point clouds around the initial point."""
+        self.original_initial_point = point
+        self.reset()
+        points = np.array([self.initial_point.copy()])
+
+        for _ in range(num_batches):
+            self.reset()
+            points = np.vstack(
+                (points, self.draw_samples(num_samples_per_batch))
+            )
+
+        return points

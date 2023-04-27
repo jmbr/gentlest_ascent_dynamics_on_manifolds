@@ -1,3 +1,7 @@
+"""Diffusion map coordinates."""
+
+__all__ = ['DiffusionMapCoordinates']
+
 from functools import partial
 
 import jax
@@ -9,19 +13,27 @@ from .gaussian_process import GaussianProcess
 
 
 class DiffusionMapCoordinates(Coordinates):
+    """Diffusion map coordinates."""
+
     def __init__(self, domain_dimension: int, codomain_dimension: int) -> None:
         self.domain_dimension = domain_dimension
         self.codomain_dimension = codomain_dimension
         self.diffusion_maps = DiffusionMaps(codomain_dimension + 1)
         self.gaussian_process = GaussianProcess()
 
-    def learn(self, points: jnp.ndarray) -> jnp.ndarray:
+    def learn(self, points: jnp.ndarray) -> None:
+        """Learn diffusion maps coordinates."""
+
         self.diffusion_maps.learn(points)
-        coordinates = (self.diffusion_maps.eigenvalues
-                       * self.diffusion_maps.eigenvectors)
-        self.gaussian_process._learn(points, coordinates,
-                                     self.diffusion_maps.epsilon,
-                                     self.diffusion_maps.kernel_matrix)
+        coordinates = (
+            self.diffusion_maps.eigenvalues * self.diffusion_maps.eigenvectors
+        )
+        self.gaussian_process._learn(
+            points,
+            coordinates,
+            self.diffusion_maps.epsilon,
+            self.diffusion_maps.kernel_matrix,
+        )
         return coordinates
 
     @partial(jax.jit, static_argnums=0)

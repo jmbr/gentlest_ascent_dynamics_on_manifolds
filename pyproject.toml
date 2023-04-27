@@ -4,5 +4,7 @@
 requires = ["setuptools>=43.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.pylint]
-indent-string = '  '
+[tool.black]
+color = true
+line-length = 79
+skip-string-normalization = true

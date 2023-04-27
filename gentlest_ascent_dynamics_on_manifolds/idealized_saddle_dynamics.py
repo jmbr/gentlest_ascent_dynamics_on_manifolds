@@ -1,21 +1,27 @@
+"""Idealized saddle dynamics."""
+
+__all__ = ['IdealizedSaddleDynamics']
+
 from functools import partial
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
 
-from typing import Callable
-
 
 class IdealizedSaddleDynamics:
     """Idealized saddle dynamics."""
-    def __init__(self, phi: Callable[[jnp.ndarray], jnp.ndarray],
-                 psi: Callable[[jnp.ndarray], jnp.ndarray],
-                 vector_field: Callable[[jnp.ndarray], jnp.ndarray]) \
-                 -> None:
-        self.phi = phi          # System of coordinates
+
+    def __init__(
+        self,
+        phi: Callable[[jnp.ndarray], jnp.ndarray],
+        psi: Callable[[jnp.ndarray], jnp.ndarray],
+        vector_field: Callable[[jnp.ndarray], jnp.ndarray],
+    ) -> None:
+        self.phi = phi  # System of coordinates
         self.Dphi = jax.jacobian(phi)
 
-        self.psi = psi          # Parameterization (psi = phi⁻¹)
+        self.psi = psi  # Parameterization (psi = phi⁻¹)
         self.Dpsi = jax.jacobian(psi)
 
         self.Y = vector_field
@@ -33,9 +39,11 @@ class IdealizedSaddleDynamics:
         g = self.metric(u)
         g_inv = jnp.linalg.inv(g)
         Dg = jax.jacobian(self.metric)(u)
-        return 1/2 * (- jnp.einsum('ijl,lk', Dg, g_inv)
-                      + jnp.einsum('lij,lk', Dg, g_inv)
-                      + jnp.einsum('jli,lk', Dg, g_inv))
+        return (
+            -jnp.einsum('ijl,lk', Dg, g_inv)
+            + jnp.einsum('lij,lk', Dg, g_inv)
+            + jnp.einsum('jli,lk', Dg, g_inv)
+        ) / 2
 
     @partial(jax.jit, static_argnums=0)
     def hessian(self, u: jnp.ndarray) -> jnp.ndarray:
@@ -49,7 +57,7 @@ class IdealizedSaddleDynamics:
     def __call__(self, u: jnp.ndarray) -> jnp.ndarray:
         """Returns the ascent direction."""
         hessian = self.hessian(u)
-        eigenvalues, eigenvectors = jnp.linalg.eigh(hessian)
+        _, eigenvectors = jnp.linalg.eigh(hessian)
         v = eigenvectors[:, 0]
 
         g = self.metric(u)
@@ -57,7 +65,10 @@ class IdealizedSaddleDynamics:
 
         grad_U = -self.Y(u)
 
-        isd_vector = 2 * jnp.dot(ascent_direction, g @ grad_U) * ascent_direction - grad_U
+        isd_vector = (
+            2 * jnp.dot(ascent_direction, g @ grad_U) * ascent_direction
+            - grad_U
+        )
         isd_vector /= jnp.sqrt(jnp.dot(isd_vector, g @ isd_vector))
 
         return isd_vector

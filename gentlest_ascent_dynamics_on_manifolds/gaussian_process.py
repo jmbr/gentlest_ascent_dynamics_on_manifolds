@@ -1,41 +1,56 @@
-from typing import Optional
+"""Gaussian process regression."""
 
+__all__ = ['GaussianProcess', 'make_gaussian_process']
+
+from typing import Optional
 from functools import partial
 
-import scipy.spatial.distance as distance
+from scipy.spatial import distance
+
 import jax
 import jax.scipy
 import jax.numpy as jnp
 
 
-DEFAULT_SIGMA: float = 1e-4
+DEFAULT_SIGMA: float = 1e-2
 
 
 class GaussianProcess:
     """Gaussian process regressor."""
-    sigma: float = DEFAULT_SIGMA         # Regularization term.
-    epsilon: Optional[float] = None      # Spatial scale parameter.
-    alphas: Optional[jnp.ndarray] = None  # Coefficients.
 
-    def __init__(self, sigma: Optional[float] = None,
-                 epsilon: Optional[float] = None) -> None:
+    sigma: float = DEFAULT_SIGMA  # Regularization term.
+    epsilon: Optional[float] = None  # Spatial scale parameter.
+    alphas: Optional[jnp.ndarray] = None  # Coefficients.
+    points: jnp.ndarray
+    cholesky_factor: jnp.ndarray
+
+    def __init__(
+        self, sigma: Optional[float] = None, epsilon: Optional[float] = None
+    ) -> None:
         if sigma is not None:
             self.sigma = sigma
         if epsilon is not None:
             self.epsilon = epsilon
 
-    def _learn(self, points: jnp.ndarray, values: jnp.ndarray,
-               epsilon: float, kernel_matrix: jnp.ndarray) -> None:
+    def _learn(
+        self,
+        points: jnp.ndarray,
+        values: jnp.ndarray,
+        epsilon: float,
+        kernel_matrix: jnp.ndarray,
+    ) -> None:
         """Auxiliary method for fitting a Gaussian process."""
         self.points = points
         self.epsilon = epsilon
 
         sigma2_eye = self.sigma**2 * jnp.eye(kernel_matrix.shape[0])
         L, _ = jax.scipy.linalg.cho_factor(
-            kernel_matrix + sigma2_eye, lower=True, check_finite=False)
+            kernel_matrix + sigma2_eye, lower=True, check_finite=False
+        )
         self.cholesky_factor = L
-        self.alphas = jax.scipy.linalg.cho_solve((L, True), values,
-                                                 check_finite=False)
+        self.alphas = jax.scipy.linalg.cho_solve(
+            (L, True), values, check_finite=False
+        )
 
     def learn(self, points: jnp.ndarray, values: jnp.ndarray) -> None:
         """Fit a Gaussian process
@@ -54,16 +69,17 @@ class GaussianProcess:
         if self.epsilon is None:
             threshold = jnp.finfo(points.dtype).eps * 1e2
             self.epsilon = jnp.sqrt(
-                jnp.median(distances2[distances2 > threshold]))
+                jnp.median(distances2[distances2 > threshold])
+            )
 
         kernel_matrix = distance.squareform(
-            jnp.exp(-distances2 / (2.0 * self.epsilon**2)))
+            jnp.exp(-distances2 / (2.0 * self.epsilon**2))
+        )
         diagonal_indices = jnp.diag_indices_from(kernel_matrix)
         kernel_matrix[diagonal_indices] = 1.0
         self.kernel_matrix = kernel_matrix
 
-        self._learn(points, values,
-                    self.epsilon, self.kernel_matrix)
+        self._learn(points, values, self.epsilon, self.kernel_matrix)
 
     @partial(jax.jit, static_argnums=0)
     def __call__(self, point: jnp.ndarray) -> jnp.ndarray:
@@ -85,14 +101,18 @@ class GaussianProcess:
 
         """
         kstar = jnp.exp(
-            -jnp.sum((point - self.points)**2, axis=1)
-            / (2.0 * self.epsilon**2))
+            -jnp.sum((point - self.points) ** 2, axis=1)
+            / (2.0 * self.epsilon**2)
+        )
         return kstar @ self.alphas
 
 
-def make_gaussian_process(X: jnp.ndarray, Y: jnp.ndarray) -> GaussianProcess:
+def make_gaussian_process(
+    X: jnp.ndarray, Y: jnp.ndarray, /, epsilon=None, sigma=None
+) -> GaussianProcess:
+    """Return Gaussian process regressor for given data and labels."""
     X, Y = jnp.atleast_2d(X), jnp.atleast_2d(Y)
     assert X.shape[0] == Y.shape[0]
-    f = GaussianProcess()
+    f = GaussianProcess(epsilon=epsilon, sigma=sigma)
     f.learn(X, Y)
     return f

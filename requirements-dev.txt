@@ -1,0 +1,11 @@
+black
+black-macchiato
+build
+flake8
+ipython
+pre-commit
+pylint
+pytest
+pytest-cov
+python-lsp-server[all]
+tox
